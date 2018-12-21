@@ -5,7 +5,7 @@ using UnityEngine;
 public class Projectile : MonoBehaviour {
 
 	// Use this for initialization
-	void Start () {
+	void Awake () {
         _deployed = false;
 
     }
@@ -17,11 +17,15 @@ public class Projectile : MonoBehaviour {
             _timer += Time.deltaTime;
             if (_timer >= _lifeTime)
             {
-                GameMgr.Instance.ProjectileMiss();
+                _deployed = false;
+                GameMgr.Instance.ProjectileMiss(transform.position);
             }
         }
 	}
 
+    /// <summary>
+    /// 
+    /// </summary>
     public void Fire()
     {
         _timer = 0f;
@@ -33,7 +37,6 @@ public class Projectile : MonoBehaviour {
         //avoid self collisions
         if (_timer <= _minColTime)
             return;
-        Debug.Log("Collision against: " + collision.gameObject.tag);
         switch (collision.gameObject.tag)
         {
             case "Enemy":
@@ -47,11 +50,11 @@ public class Projectile : MonoBehaviour {
                 break;
 
             case "Obstacle":
-                GameMgr.Instance.ProjectileMiss();
+                GameMgr.Instance.ProjectileMiss(transform.position, true);
                 GameMgr.Instance.PlayImpactSfx(false, transform.position);
                 break;
             case "Ground":
-                GameMgr.Instance.ProjectileMiss();
+                GameMgr.Instance.ProjectileMiss(transform.position, false);
                 GameMgr.Instance.PlayImpactSfx(false, transform.position);
                 break;
             default:

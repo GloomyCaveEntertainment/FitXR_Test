@@ -17,17 +17,9 @@ public class Tank : MonoBehaviour {
     #endregion
 
     #region Behaviour Methods
-    // Use this for initialization
-    void Start () {
-		
-	}
-    
-    // Update is called once per frame
     void Update () {
 		switch (_state)
         {
-
-
             case TSTATE.MOVING:
                 if (Vector3.Distance(_targetPos, transform.position) <= _minReachDist)
                 {
@@ -49,10 +41,15 @@ public class Tank : MonoBehaviour {
         _agent = GetComponent<NavMeshAgent>();
         if (!_agent)
             Debug.LogError("No NavMeshAgent component found!");
+        _randomShot = true;
+        _missCounter = 0;
+        _currentFireAngle = _minFireAngle;
+        _currentFirePower = _minFirePower;
+
     }
 
     /// <summary>
-    /// 
+    /// Moves to position using the navmesh
     /// </summary>
     /// <param name="position"></param>
     public void MoveToPosition(Vector3 position)
@@ -67,20 +64,26 @@ public class Tank : MonoBehaviour {
     /// <summary>
     /// 
     /// </summary>
+    /// <param name="isPlayerTank">player or AI</param>
     public void Fire(bool isPlayerTank = false)
     {
         if (isPlayerTank)
         {
-            //already calculated from player input
+            //height angle already calculated from player input
+            _currentFireVector = new Vector3(_turretHelper.forward.x, Mathf.Abs(_turretHelper.forward.z) * Mathf.Tan(_currentFireAngle * (Mathf.PI / 180f)), _turretHelper.forward.z).normalized;
         }
-        else
+        else  //AI
         {
-            _currentFireAngle = Random.Range(_minFireAngle, _maxFireAngle);
-            _currentFirePower = Random.Range(_minFirePower, _maxFirePower);
-            _currentFireVector = new Vector3(_turretHelper.forward.x, _turretHelper.forward.z * Mathf.Tan(_currentFireAngle * (Mathf.PI / 180f)), _turretHelper.forward.z).normalized;
+            //First shot uses random values.
+            if (_randomShot)
+            {
+                _randomShot = false;
+                _currentFireAngle = Random.Range(_minFireAngle, _maxFireAngle);
+                _currentFirePower = Random.Range(_minFirePower, _maxFirePower);
 
+            }
+            _currentFireVector = new Vector3(_turretHelper.forward.x, Mathf.Abs(_turretHelper.forward.z) * Mathf.Tan(_currentFireAngle * (Mathf.PI / 180f)), _turretHelper.forward.z).normalized;
         }
-        Debug.Log("Firing stats: " + _currentFireAngle + " - " + _currentFirePower);
         Fire(_currentFireVector, _currentFirePower);
     }
 
@@ -91,7 +94,6 @@ public class Tank : MonoBehaviour {
     /// <param name="firePower"></param>
     public void Fire(Vector3 fireDir, float firePower)
     {
-        Debug.Log(name+" firing with dir and power: " + fireDir + " - " + firePower);
         GameMgr.Instance.Projectile.transform.position = _turretHelper.transform.position;
         GameMgr.Instance.Projectile.SetActive(true);
         GameMgr.Instance.Projectile.GetComponent<Projectile>().Fire();
@@ -103,24 +105,68 @@ public class Tank : MonoBehaviour {
     /// 
     /// </summary>
     /// <param name="height"></param>
-    public void SetFireVector(float height)
+    public void SetFitingAngle(float height)
     {
-        _currentFireVector = new Vector3(_turretHelper.forward.x, _turretHelper.forward.z * Mathf.Tan(height * (Mathf.PI / 180f)), _turretHelper.forward.z).normalized;
-        Debug.Log("Player fire vector: " +height + " - "+ _currentFireVector);
+        _currentFireAngle = height;
+        //_currentFireVector = new Vector3(_turretHelper.forward.x, Mathf.Abs(_turretHelper.forward.z) * Mathf.Tan(height * (Mathf.PI / 180f)), _turretHelper.forward.z).normalized;
     }
 
     /// <summary>
     /// Improve aiming based on last firing values 
     /// </summary>
-    public void RecalculateValues()
+    public void RecalculateValues(Vector3 missPosition, bool missedByObstacle)
     {
-        //TODO
         Debug.Log("Recalculating. . .");
+        //Too many attempts with same angle, change it
+        if (_missCounter > _maxMissesSameAngle)
+        {
+            GetNewFiringAngle(true);
+        }
+        else
+        {
+            //Short shot
+            if (Vector3.Distance(missPosition, transform.position) < Vector3.Distance(GameMgr.Instance.PlayerPos, transform.position))
+            {   //raise angle, there was an obstacle 
+                if (missedByObstacle)
+                    GetNewFiringAngle(false);
+                else
+                {
+                    ++_missCounter;
+                    Debug.Log("**MIN New firing power is from: " + _currentFirePower);
+                    _newMinPower_AI = _currentFirePower;    //adjust firing range
+                    _currentFirePower = Mathf.Lerp(_currentFirePower, _maxFirePower, 0.5f);
+                    Debug.Log("to: " + _currentFirePower);
+                }
+            }
+            else //far shot
+            {
+                ++_missCounter;
+                Debug.Log("**   FS - New firing power is from: " + _currentFirePower);
+                _newMaxPower_AI = _maxFirePower;    //adjust firing range
+                _currentFirePower = Mathf.Lerp(_minFirePower, _currentFirePower, 0.5f);
+                Debug.Log("to: " + _currentFirePower);
+            }
+        }
+        
     }
     #endregion
 
     #region Private Methods
-
+    /// <summary>
+    /// Calculates a new firing angle
+    /// </summary>
+    /// <param name="randomAngle">new random angle or raise current angle</param>
+    private void GetNewFiringAngle(bool randomAngle)
+    {
+        if (randomAngle)
+            _currentFireAngle = Random.Range(_minFireAngle, _maxFireAngle);
+        else
+            _currentFireAngle = Mathf.Lerp(_currentFireAngle, _maxFireAngle, 0.5f);// (_maxFireAngle - _currentFireAngle) * 0.5f;
+                                                                               //reset power range if we tweak angle
+        _newMinPower_AI = _minFirePower;
+        _newMaxPower_AI = _maxFirePower;
+        _missCounter = 0;   //reset counter, new angle
+    }
     #endregion
 
     #region Properties
@@ -132,14 +178,14 @@ public class Tank : MonoBehaviour {
     [SerializeField]
     private float _minReachDist;    //minimum distance to reach a target destination
     [SerializeField]
-    private Transform _turretHelper;
+    private Transform _turretHelper;    //projectile spawn spot
     [SerializeField]
     private float _minFireAngle, _maxFireAngle;   //over the horizontal plane, in degrees
     [SerializeField]
     private float _minFirePower, _maxFirePower;
+    [SerializeField]
+    private int _maxMissesSameAngle;    //max allowed misses with the same angle
 
-
-    //TOREMOVE
     #endregion
 
     #region Private Non-Serialized Fields
@@ -147,6 +193,10 @@ public class Tank : MonoBehaviour {
     private NavMeshAgent _agent;
     private Vector3 _targetPos; //movement target position
     private float _currentFireAngle, _currentFirePower;
+    private float  _newMaxPower_AI, _newMinPower_AI;
     private Vector3 _currentFireVector;
+
+    private int _missCounter;   //counter to prevent "dead" aiming loops
+    private bool _randomShot;   //flag used for first AI shot, taking init random values
     #endregion
 }

@@ -33,7 +33,7 @@ public class UIMgr : MonoBehaviour
     // Use this for initialization
     void Start()
     {
-
+        
     }
 
     // Update is called once per frame
@@ -128,6 +128,7 @@ public class UIMgr : MonoBehaviour
     public void SetFiringHeight(float val)
     {
         GameMgr.Instance.SetPlayerFireHeight(val);
+        _heightFbText.text = val.ToString("0.0");
     }
 
     /// <summary>
@@ -137,6 +138,7 @@ public class UIMgr : MonoBehaviour
     public void SetFiringPower(float val)
     {
         GameMgr.Instance.SetPlayerFirePower(val);
+        _powerFbText.text = val.ToString("0.0");
     }
 
     /// <summary>
@@ -223,6 +225,8 @@ public class UIMgr : MonoBehaviour
     private GameObject _gameFinishedPanel;
     [SerializeField]
     private Text _gameFinishedText;
+    [SerializeField]
+    private Text _heightFbText, _powerFbText;   //feedback text for selected height and power
     #endregion
 
 }

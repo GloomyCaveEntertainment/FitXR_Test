@@ -31,18 +31,21 @@ public class GameMgr : MonoBehaviour
 
 
     }
-    // Use this for initialization
+
     void Start()
     {
         Setup();
         SetState(STATE.INSTRUCTIONS);
     }
 
-    // Update is called once per frame
     void Update()
     {
-        //TOREMOVE
-        _debugText.text = _state.ToString();
+        //ESC - Quit
+        if (Input.GetKeyDown(KeyCode.Escape))
+            Application.Quit();
+        //R - Restart
+        else if (Input.GetKeyDown(KeyCode.R))
+            ResetGame();
 
         switch (_state)
         {
@@ -52,7 +55,7 @@ public class GameMgr : MonoBehaviour
 
             case STATE.INSTRUCTIONS:
                 _timer += Time.deltaTime;            
-                if (_timer >= _instructionsTime)
+                if (Input.GetKeyDown(KeyCode.Space) || _timer >= _instructionsTime)
                 {
                     _timer = 0f;
                     ++_instructionIndex;
@@ -66,6 +69,7 @@ public class GameMgr : MonoBehaviour
                         _uiMgr.ShowInstruction(_gameInstructions[_instructionIndex]);                    
                     }
                 }
+
                 break;
 
             case STATE.WAIT_PLAYER_INPUT:
@@ -130,8 +134,7 @@ public class GameMgr : MonoBehaviour
     /// <param name="val"></param>
     public void SetPlayerFireHeight(float val)
     {
-        _playerTank.SetFireVector(val);  
-        
+        _playerTank.SetFitingAngle(val);       
     }
 
     /// <summary>
@@ -146,15 +149,15 @@ public class GameMgr : MonoBehaviour
     /// <summary>
     /// 
     /// </summary>
-    public void ProjectileMiss()
+    public void ProjectileMiss(Vector3 position, bool byObstacle = false)
     {
         switch (_state)
         {
             case STATE.FIRING_AI:
                 _uiMgr.ShowFeedbackText("Enemy misses!");
-                _enemyTank.RecalculateValues();     //improve aiming for next round
+                _enemyTank.RecalculateValues(position, byObstacle);     //improve aiming for next round
                 SetState(STATE.SHOWING_RESULTS);
-                _nextState = STATE.FIRING_PLAYER;
+                _nextState = STATE.AIMING_PLAYER;
                 //SetState(STATE.FIRING_PLAYER);
                 break;
 
@@ -182,6 +185,9 @@ public class GameMgr : MonoBehaviour
         //_uiMgr.ShowGameFinishedPanel(true);
         _win = true;
         _projectile.SetActive(false);
+        _explosionPs.transform.position = _enemyTank.transform.position;
+        _explosionPs.gameObject.SetActive(true);
+        _explosionPs.Play();
     }
 
     /// <summary>
@@ -198,7 +204,9 @@ public class GameMgr : MonoBehaviour
         //_uiMgr.ShowGameFinishedPanel(false);
         _win = false;
         _projectile.SetActive(false);
- 
+        _explosionPs.transform.position = _playerTank.transform.position;
+        _explosionPs.gameObject.SetActive(true);
+        _explosionPs.Play();
     }
 
     /// <summary>
@@ -206,6 +214,9 @@ public class GameMgr : MonoBehaviour
     /// </summary>
     public void FirePlayerTank()
     {
+        if (_state != STATE.AIMING_PLAYER)
+            return;
+        SetState(STATE.FIRING_PLAYER);
         _playerTank.Fire(true);
     }
 
@@ -247,6 +258,7 @@ public class GameMgr : MonoBehaviour
         _playerTank.Setup();
         _enemyTank.Setup();
         _projectile.SetActive(false);
+        _explosionPs.gameObject.SetActive(false);
         StartTanks();
     }
 
@@ -263,10 +275,14 @@ public class GameMgr : MonoBehaviour
     /// </summary>
     private void StartTanks()
     {
+        _playerTank.GetComponent<UnityEngine.AI.NavMeshAgent>().enabled = false;
+        _enemyTank.GetComponent<UnityEngine.AI.NavMeshAgent>().enabled = false;
         _playerTank.transform.position = _playerStartPos.position;
         _playerTank.transform.rotation = _playerStartPos.rotation;
         _enemyTank.transform.position = _enemyStartPos.position;
         _enemyTank.transform.rotation = _enemyStartPos.rotation;
+        _playerTank.GetComponent<UnityEngine.AI.NavMeshAgent>().enabled = true;
+        _enemyTank.GetComponent<UnityEngine.AI.NavMeshAgent>().enabled = true;
     }
 
     /// <summary>
@@ -302,8 +318,12 @@ public class GameMgr : MonoBehaviour
                 _enemyTank.Fire();
                 break;
 
-            case STATE.FIRING_PLAYER:
+            case STATE.AIMING_PLAYER:
                 _uiMgr.ShowAimingPanel(true);
+                break;
+
+            case STATE.FIRING_PLAYER:
+                
                 break;
 
             case STATE.SHOWING_RESULTS:
@@ -357,6 +377,7 @@ public class GameMgr : MonoBehaviour
 
     #region Properties
     public GameObject Projectile {  get { return _projectile; } private set { } }
+    public Vector3 PlayerPos {  get { return _playerTank.transform.position; } private set { } }
     #endregion
 
     #region Private Serialized Fields
@@ -368,23 +389,24 @@ public class GameMgr : MonoBehaviour
     private List<string> _gameInstructions;
 
     [SerializeField]
-    private float _instructionsTime;
+    private float _instructionsTime;    //showing time
     [SerializeField]
-    private float _resultsFbTime;
+    private float _resultsFbTime;       //fire result feedback
 
     [SerializeField]
     private GameObject _navigableGround;    //object which determines the navigable area size
     [SerializeField]
     private LayerMask _groundLayerMask, _obstacleLayerMask;
     [SerializeField]
-    private GameObject _projectile;
+    private GameObject _projectile;     //reusing one projectile for both tanks 
     [SerializeField]
-    private UnityEngine.UI.Text _debugText;
-
+    private ParticleSystem _explosionPs;
+    
+    //Audio
     [SerializeField]
     private AudioSource _audioSource;
     [SerializeField]
-    private AudioClip _impactSfx, _missFx;
+    private AudioClip _impactSfx, _missFx;  //fire SFX
     #endregion
 
     #region Private Non-serialized Fields
