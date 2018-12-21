@@ -23,6 +23,7 @@ public class Tank : MonoBehaviour {
             case TSTATE.MOVING:
                 if (Vector3.Distance(_targetPos, transform.position) <= _minReachDist)
                 {
+                    _agent.isStopped = true;
                     GameMgr.Instance.TankOnPosition();
                     _state = TSTATE.IDLE;
                 }
